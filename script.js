@@ -30,12 +30,12 @@ let appData = {
 // Initialize the app
 function initApp() {
     loadData();
+    loadThemePreference();
     setupEventListeners();
     renderCategories();
     updateSummaryCards();
     renderTables();
 }
-
 // Load data from localStorage
 function loadData() {
     const savedData = localStorage.getItem("budgetFlowData");
@@ -98,14 +98,37 @@ function setupEventListeners() {
 
 // Toggle between light and dark mode
 function toggleTheme() {
-    document.body.classList.toggle("dark-mode");
-    const icon = themeToggle.querySelector("i");
-    if (document.body.classList.contains("dark-mode")) {
-        icon.classList.remove("fa-moon");
-        icon.classList.add("fa-sun");
+    const isDarkMode = document.body.classList.toggle('dark-mode');
+    const icon = themeToggle.querySelector('i');
+    
+    if (isDarkMode) {
+        icon.classList.remove('fa-moon');
+        icon.classList.add('fa-sun');
     } else {
-        icon.classList.remove("fa-sun");
-        icon.classList.add("fa-moon");
+        icon.classList.remove('fa-sun');
+        icon.classList.add('fa-moon');
+    }
+    
+    // Save theme preference to localStorage
+    localStorage.setItem('budgetFlowTheme', isDarkMode ? 'dark' : 'light');
+}
+
+// Load theme preference from localStorage
+function loadThemePreference() {
+    let savedTheme = localStorage.getItem('budgetFlowTheme');
+    
+    // If no theme is saved, use system preference
+    if (!savedTheme) {
+        savedTheme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    
+    const isDarkMode = savedTheme === 'dark';
+    
+    if (isDarkMode) {
+        document.body.classList.add('dark-mode');
+        const icon = themeToggle.querySelector('i');
+        icon.classList.remove('fa-moon');
+        icon.classList.add('fa-sun');
     }
 }
 
@@ -338,7 +361,7 @@ function renderTables() {
     renderLiabilityTable();
 }
 
-// Render income table
+// Update renderIncomeTable function
 function renderIncomeTable() {
     const tableBody = document.getElementById("incomeTableBody");
     tableBody.innerHTML = "";
@@ -348,7 +371,7 @@ function renderIncomeTable() {
         row.innerHTML = `
             <td>${income.source}</td>
             <td>${income.category}</td>
-            <td>£${formatCurrency(income.amount)}</td>
+            <td>$${formatCurrency(income.amount)}</td>
             <td>
                 <button class="action-btn edit-income" data-id="${income.id}">
                     <i class="fas fa-edit"></i>
@@ -361,6 +384,14 @@ function renderIncomeTable() {
         tableBody.appendChild(row);
     });
 
+    // Add event listeners to edit buttons
+    document.querySelectorAll(".edit-income").forEach((button) => {
+        button.addEventListener("click", (e) => {
+            const id = parseInt(e.target.closest("button").getAttribute("data-id"));
+            editIncome(id);
+        });
+    });
+
     // Add event listeners to delete buttons
     document.querySelectorAll(".delete-income").forEach((button) => {
         button.addEventListener("click", (e) => {
@@ -370,7 +401,7 @@ function renderIncomeTable() {
     });
 }
 
-// Render expense table
+// Update renderExpenseTable function
 function renderExpenseTable() {
     const tableBody = document.getElementById("expenseTableBody");
     tableBody.innerHTML = "";
@@ -380,7 +411,7 @@ function renderExpenseTable() {
         row.innerHTML = `
             <td>${expense.description}</td>
             <td>${expense.category}</td>
-            <td>£${formatCurrency(expense.amount)}</td>
+            <td>$${formatCurrency(expense.amount)}</td>
             <td>
                 <button class="action-btn edit-expense" data-id="${expense.id}">
                     <i class="fas fa-edit"></i>
@@ -393,6 +424,14 @@ function renderExpenseTable() {
         tableBody.appendChild(row);
     });
 
+    // Add event listeners to edit buttons
+    document.querySelectorAll(".edit-expense").forEach((button) => {
+        button.addEventListener("click", (e) => {
+            const id = parseInt(e.target.closest("button").getAttribute("data-id"));
+            editExpense(id);
+        });
+    });
+
     // Add event listeners to delete buttons
     document.querySelectorAll(".delete-expense").forEach((button) => {
         button.addEventListener("click", (e) => {
@@ -402,7 +441,7 @@ function renderExpenseTable() {
     });
 }
 
-// Render asset table
+// Update renderAssetTable function
 function renderAssetTable() {
     const tableBody = document.getElementById("assetTableBody");
     tableBody.innerHTML = "";
@@ -412,7 +451,7 @@ function renderAssetTable() {
         row.innerHTML = `
             <td>${asset.name}</td>
             <td>${asset.type}</td>
-            <td>£${formatCurrency(asset.value)}</td>
+            <td>$${formatCurrency(asset.value)}</td>
             <td>
                 <button class="action-btn edit-asset" data-id="${asset.id}">
                     <i class="fas fa-edit"></i>
@@ -425,6 +464,14 @@ function renderAssetTable() {
         tableBody.appendChild(row);
     });
 
+    // Add event listeners to edit buttons
+    document.querySelectorAll(".edit-asset").forEach((button) => {
+        button.addEventListener("click", (e) => {
+            const id = parseInt(e.target.closest("button").getAttribute("data-id"));
+            editAsset(id);
+        });
+    });
+
     // Add event listeners to delete buttons
     document.querySelectorAll(".delete-asset").forEach((button) => {
         button.addEventListener("click", (e) => {
@@ -434,7 +481,7 @@ function renderAssetTable() {
     });
 }
 
-// Render liability table
+// Update renderLiabilityTable function
 function renderLiabilityTable() {
     const tableBody = document.getElementById("liabilityTableBody");
     tableBody.innerHTML = "";
@@ -444,7 +491,7 @@ function renderLiabilityTable() {
         row.innerHTML = `
             <td>${liability.name}</td>
             <td>${liability.type}</td>
-            <td>£${formatCurrency(liability.amount)}</td>
+            <td>$${formatCurrency(liability.amount)}</td>
             <td>
                 <button class="action-btn edit-liability" data-id="${liability.id}">
                     <i class="fas fa-edit"></i>
@@ -455,6 +502,14 @@ function renderLiabilityTable() {
             </td>
         `;
         tableBody.appendChild(row);
+    });
+
+    // Add event listeners to edit buttons
+    document.querySelectorAll(".edit-liability").forEach((button) => {
+        button.addEventListener("click", (e) => {
+            const id = parseInt(e.target.closest("button").getAttribute("data-id"));
+            editLiability(id);
+        });
     });
 
     // Add event listeners to delete buttons
@@ -506,6 +561,242 @@ function deleteLiability(id) {
     }
 }
 
+// Edit income
+function editIncome(id) {
+    const income = appData.incomes.find((inc) => inc.id === id);
+    if (!income) return;
+
+    document.getElementById("incomeSource").value = income.source;
+    document.getElementById("incomeCategory").value = income.category;
+    document.getElementById("incomeAmount").value = income.amount;
+
+    // Change modal to edit mode
+    const modal = document.getElementById("incomeModal");
+    const modalTitle = modal.querySelector(".modal-title");
+    const submitBtn = modal.querySelector('button[type="submit"]');
+
+    modalTitle.textContent = "Edit Income Source";
+    submitBtn.textContent = "Update Income";
+    submitBtn.onclick = (e) => {
+        e.preventDefault();
+        updateIncome(id);
+    };
+
+    openModal("incomeModal");
+}
+
+// Update income
+function updateIncome(id) {
+    const source = document.getElementById("incomeSource").value;
+    const category = document.getElementById("incomeCategory").value;
+    const amount = parseFloat(document.getElementById("incomeAmount").value);
+
+    const incomeIndex = appData.incomes.findIndex((inc) => inc.id === id);
+    if (incomeIndex !== -1) {
+        appData.incomes[incomeIndex] = {
+            id: id,
+            source,
+            category,
+            amount,
+        };
+
+        saveData();
+        updateSummaryCards();
+        renderTables();
+        closeModals();
+        document.getElementById("incomeForm").reset();
+
+        // Reset modal to add mode
+        const modal = document.getElementById("incomeModal");
+        const modalTitle = modal.querySelector(".modal-title");
+        const submitBtn = modal.querySelector('button[type="submit"]');
+
+        modalTitle.textContent = "Add Income Source";
+        submitBtn.textContent = "Add Income";
+        submitBtn.onclick = (e) => {
+            e.preventDefault();
+            addIncome(e);
+        };
+    }
+}
+
+// Edit expense
+function editExpense(id) {
+    const expense = appData.expenses.find((exp) => exp.id === id);
+    if (!expense) return;
+
+    document.getElementById("expenseDescription").value = expense.description;
+    document.getElementById("expenseCategory").value = expense.category;
+    document.getElementById("expenseAmount").value = expense.amount;
+
+    // Change modal to edit mode
+    const modal = document.getElementById("expenseModal");
+    const modalTitle = modal.querySelector(".modal-title");
+    const submitBtn = modal.querySelector('button[type="submit"]');
+
+    modalTitle.textContent = "Edit Expense";
+    submitBtn.textContent = "Update Expense";
+    submitBtn.onclick = (e) => {
+        e.preventDefault();
+        updateExpense(id);
+    };
+
+    openModal("expenseModal");
+}
+
+// Update expense
+function updateExpense(id) {
+    const description = document.getElementById("expenseDescription").value;
+    const category = document.getElementById("expenseCategory").value;
+    const amount = parseFloat(document.getElementById("expenseAmount").value);
+
+    const expenseIndex = appData.expenses.findIndex((exp) => exp.id === id);
+    if (expenseIndex !== -1) {
+        appData.expenses[expenseIndex] = {
+            id: id,
+            description,
+            category,
+            amount,
+        };
+
+        saveData();
+        updateSummaryCards();
+        renderTables();
+        closeModals();
+        document.getElementById("expenseForm").reset();
+
+        // Reset modal to add mode
+        const modal = document.getElementById("expenseModal");
+        const modalTitle = modal.querySelector(".modal-title");
+        const submitBtn = modal.querySelector('button[type="submit"]');
+
+        modalTitle.textContent = "Add Expense";
+        submitBtn.textContent = "Add Expense";
+        submitBtn.onclick = (e) => {
+            e.preventDefault();
+            addExpense(e);
+        };
+    }
+}
+
+// Edit asset
+function editAsset(id) {
+    const asset = appData.assets.find((ast) => ast.id === id);
+    if (!asset) return;
+
+    document.getElementById("assetName").value = asset.name;
+    document.getElementById("assetType").value = asset.type;
+    document.getElementById("assetValue").value = asset.value;
+
+    // Change modal to edit mode
+    const modal = document.getElementById("assetModal");
+    const modalTitle = modal.querySelector(".modal-title");
+    const submitBtn = modal.querySelector('button[type="submit"]');
+
+    modalTitle.textContent = "Edit Asset";
+    submitBtn.textContent = "Update Asset";
+    submitBtn.onclick = (e) => {
+        e.preventDefault();
+        updateAsset(id);
+    };
+
+    openModal("assetModal");
+}
+
+// Update asset
+function updateAsset(id) {
+    const name = document.getElementById("assetName").value;
+    const type = document.getElementById("assetType").value;
+    const value = parseFloat(document.getElementById("assetValue").value);
+
+    const assetIndex = appData.assets.findIndex((ast) => ast.id === id);
+    if (assetIndex !== -1) {
+        appData.assets[assetIndex] = {
+            id: id,
+            name,
+            type,
+            value,
+        };
+
+        saveData();
+        updateSummaryCards();
+        renderTables();
+        closeModals();
+        document.getElementById("assetForm").reset();
+
+        // Reset modal to add mode
+        const modal = document.getElementById("assetModal");
+        const modalTitle = modal.querySelector(".modal-title");
+        const submitBtn = modal.querySelector('button[type="submit"]');
+
+        modalTitle.textContent = "Add Asset";
+        submitBtn.textContent = "Add Asset";
+        submitBtn.onclick = (e) => {
+            e.preventDefault();
+            addAsset(e);
+        };
+    }
+}
+
+// Edit liability
+function editLiability(id) {
+    const liability = appData.liabilities.find((lib) => lib.id === id);
+    if (!liability) return;
+
+    document.getElementById("liabilityName").value = liability.name;
+    document.getElementById("liabilityType").value = liability.type;
+    document.getElementById("liabilityAmount").value = liability.amount;
+
+    // Change modal to edit mode
+    const modal = document.getElementById("liabilityModal");
+    const modalTitle = modal.querySelector(".modal-title");
+    const submitBtn = modal.querySelector('button[type="submit"]');
+
+    modalTitle.textContent = "Edit Liability";
+    submitBtn.textContent = "Update Liability";
+    submitBtn.onclick = (e) => {
+        e.preventDefault();
+        updateLiability(id);
+    };
+
+    openModal("liabilityModal");
+}
+
+// Update liability
+function updateLiability(id) {
+    const name = document.getElementById("liabilityName").value;
+    const type = document.getElementById("liabilityType").value;
+    const amount = parseFloat(document.getElementById("liabilityAmount").value);
+
+    const liabilityIndex = appData.liabilities.findIndex((lib) => lib.id === id);
+    if (liabilityIndex !== -1) {
+        appData.liabilities[liabilityIndex] = {
+            id: id,
+            name,
+            type,
+            amount,
+        };
+
+        saveData();
+        updateSummaryCards();
+        renderTables();
+        closeModals();
+        document.getElementById("liabilityForm").reset();
+
+        // Reset modal to add mode
+        const modal = document.getElementById("liabilityModal");
+        const modalTitle = modal.querySelector(".modal-title");
+        const submitBtn = modal.querySelector('button[type="submit"]');
+
+        modalTitle.textContent = "Add Liability";
+        submitBtn.textContent = "Add Liability";
+        submitBtn.onclick = (e) => {
+            e.preventDefault();
+            addLiability(e);
+        };
+    }
+}
+
 // Export data
 function exportData() {
     const dataStr = JSON.stringify(appData, null, 2);
@@ -519,6 +810,57 @@ function exportData() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+}
+
+// Reset modals to add mode
+function resetModalsToAddMode() {
+    const modals = {
+        incomeModal: {
+            title: "Add Income Source",
+            button: "Add Income",
+            form: "incomeForm",
+        },
+        expenseModal: {
+            title: "Add Expense",
+            button: "Add Expense",
+            form: "expenseForm",
+        },
+        assetModal: {
+            title: "Add Asset",
+            button: "Add Asset",
+            form: "assetForm",
+        },
+        liabilityModal: {
+            title: "Add Liability",
+            button: "Add Liability",
+            form: "liabilityForm",
+        },
+    };
+
+    Object.keys(modals).forEach((modalId) => {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            const modalTitle = modal.querySelector(".modal-title");
+            const submitBtn = modal.querySelector('button[type="submit"]');
+            const form = document.getElementById(modals[modalId].form);
+
+            modalTitle.textContent = modals[modalId].title;
+            submitBtn.textContent = modals[modalId].button;
+
+            // Reset form
+            if (form) {
+                form.reset();
+            }
+        }
+    });
+}
+
+// Update closeModals function to reset forms
+function closeModals() {
+    modals.forEach((modal) => {
+        modal.style.display = "none";
+    });
+    resetModalsToAddMode();
 }
 
 // Import data
