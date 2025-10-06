@@ -11,20 +11,12 @@ let appData = {
     expenses: [],
     assets: [],
     liabilities: [],
-    categories: [
-        "Salary",
-        "Freelance",
-        "Investment",
-        "Rental",
-        "Business",
-        "Housing",
-        "Food",
-        "Transportation",
-        "Utilities",
-        "Entertainment",
-        "Healthcare",
-        "Education",
-    ],
+    categories: {
+        income: ["Salary", "Freelance", "Investment", "Rental", "Business"],
+        expense: ["Housing", "Food", "Transportation", "Utilities", "Entertainment", "Healthcare", "Education"],
+        asset: ["Cash", "Bank Account", "Investment", "Property", "Vehicle", "Other"],
+        liability: ["Credit Card", "Loan", "Mortgage", "Other"],
+    },
 };
 
 // Initialize the app
@@ -36,11 +28,34 @@ function initApp() {
     updateSummaryCards();
     renderTables();
 }
+
+// Migrate old data structure to new one
+function migrateDataStructure() {
+    // If categories is an array (old structure), convert to new structure
+    if (Array.isArray(appData.categories)) {
+        const oldCategories = appData.categories;
+        appData.categories = {
+            income: oldCategories.filter((cat) =>
+                ["Salary", "Freelance", "Investment", "Rental", "Business"].includes(cat)
+            ),
+            expense: oldCategories.filter((cat) =>
+                ["Housing", "Food", "Transportation", "Utilities", "Entertainment", "Healthcare", "Education"].includes(
+                    cat
+                )
+            ),
+            asset: ["Cash", "Bank Account", "Investment", "Property", "Vehicle", "Other"],
+            liability: ["Credit Card", "Loan", "Mortgage", "Other"],
+        };
+        saveData(); // Save the migrated structure
+    }
+}
+
 // Load data from localStorage
 function loadData() {
     const savedData = localStorage.getItem("budgetFlowData");
     if (savedData) {
         appData = JSON.parse(savedData);
+        migrateDataStructure(); // Add this line
     }
 }
 
@@ -67,14 +82,46 @@ function setupEventListeners() {
     document.getElementById("addExpenseBtn").addEventListener("click", () => openModal("expenseModal"));
     document.getElementById("addAssetBtn").addEventListener("click", () => openModal("assetModal"));
     document.getElementById("addLiabilityBtn").addEventListener("click", () => openModal("liabilityModal"));
-    document.getElementById("addCategoryBtn").addEventListener("click", () => openModal("categoryModal"));
+
+    // Category buttons
+    document.querySelectorAll(".add-category-btn").forEach((button) => {
+        button.addEventListener("click", (e) => {
+            const type = e.target.closest(".add-category-btn").getAttribute("data-type");
+            openCategoryModal(type);
+        });
+    });
+
+    // Category buttons
+    document.querySelectorAll(".add-category-btn").forEach((button) => {
+        button.addEventListener("click", (e) => {
+            const type = e.target.closest(".add-category-btn").getAttribute("data-type");
+            openCategoryModal(type);
+        });
+    });
 
     // Form submissions
     document.getElementById("incomeForm").addEventListener("submit", addIncome);
     document.getElementById("expenseForm").addEventListener("submit", addExpense);
     document.getElementById("assetForm").addEventListener("submit", addAsset);
     document.getElementById("liabilityForm").addEventListener("submit", addLiability);
-    document.getElementById("categoryForm").addEventListener("submit", addCategory);
+    document.getElementById("categoryForm").addEventListener("submit", function(e) {
+        e.preventDefault();
+        const name = document.getElementById("categoryName").value.trim();
+        const type = document.getElementById("categoryType").value;
+    
+        if (!name) return;
+    
+        if (!appData.categories[type].includes(name)) {
+            appData.categories[type].push(name);
+            saveData();
+            renderAllCategories();
+            populateCategorySelects(); // Update dropdowns
+            closeModals();
+            document.getElementById("categoryForm").reset();
+        } else {
+            alert(`${name} already exists in ${type} categories!`);
+        }
+    });
 
     // Data management buttons
     document.getElementById("exportDataBtn").addEventListener("click", exportData);
@@ -98,37 +145,37 @@ function setupEventListeners() {
 
 // Toggle between light and dark mode
 function toggleTheme() {
-    const isDarkMode = document.body.classList.toggle('dark-mode');
-    const icon = themeToggle.querySelector('i');
-    
+    const isDarkMode = document.body.classList.toggle("dark-mode");
+    const icon = themeToggle.querySelector("i");
+
     if (isDarkMode) {
-        icon.classList.remove('fa-moon');
-        icon.classList.add('fa-sun');
+        icon.classList.remove("fa-moon");
+        icon.classList.add("fa-sun");
     } else {
-        icon.classList.remove('fa-sun');
-        icon.classList.add('fa-moon');
+        icon.classList.remove("fa-sun");
+        icon.classList.add("fa-moon");
     }
-    
+
     // Save theme preference to localStorage
-    localStorage.setItem('budgetFlowTheme', isDarkMode ? 'dark' : 'light');
+    localStorage.setItem("budgetFlowTheme", isDarkMode ? "dark" : "light");
 }
 
 // Load theme preference from localStorage
 function loadThemePreference() {
-    let savedTheme = localStorage.getItem('budgetFlowTheme');
-    
+    let savedTheme = localStorage.getItem("budgetFlowTheme");
+
     // If no theme is saved, use system preference
     if (!savedTheme) {
-        savedTheme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        savedTheme = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
     }
-    
-    const isDarkMode = savedTheme === 'dark';
-    
+
+    const isDarkMode = savedTheme === "dark";
+
     if (isDarkMode) {
-        document.body.classList.add('dark-mode');
-        const icon = themeToggle.querySelector('i');
-        icon.classList.remove('fa-moon');
-        icon.classList.add('fa-sun');
+        document.body.classList.add("dark-mode");
+        const icon = themeToggle.querySelector("i");
+        icon.classList.remove("fa-moon");
+        icon.classList.add("fa-sun");
     }
 }
 
@@ -164,55 +211,156 @@ function closeModals() {
     });
 }
 
-// Populate category selects in modals
-function populateCategorySelects() {
-    const incomeCategory = document.getElementById("incomeCategory");
-    const expenseCategory = document.getElementById("expenseCategory");
-
-    // Clear existing options except the first one
-    while (incomeCategory.children.length > 1) {
-        incomeCategory.removeChild(incomeCategory.lastChild);
-    }
-    while (expenseCategory.children.length > 1) {
-        expenseCategory.removeChild(expenseCategory.lastChild);
-    }
-
-    // Add categories
-    appData.categories.forEach((category) => {
-        const incomeOption = document.createElement("option");
-        incomeOption.value = category;
-        incomeOption.textContent = category;
-        incomeCategory.appendChild(incomeOption);
-
-        const expenseOption = document.createElement("option");
-        expenseOption.value = category;
-        expenseOption.textContent = category;
-        expenseCategory.appendChild(expenseOption);
-    });
+// Render all categories in settings
+function renderAllCategories() {
+    renderCategoryList("income", "incomeCategoryList");
+    renderCategoryList("expense", "expenseCategoryList");
+    renderCategoryList("asset", "assetCategoryList");
+    renderCategoryList("liability", "liabilityCategoryList");
 }
 
-// Render categories in settings
-function renderCategories() {
-    const categoryList = document.getElementById("categoryList");
-    categoryList.innerHTML = "";
+// Render category list for a specific type
+function renderCategoryList(type, containerId) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = "";
 
-    appData.categories.forEach((category) => {
+    const typeLabels = {
+        income: "Income Category",
+        expense: "Expense Category",
+        asset: "Asset Type",
+        liability: "Liability Type",
+    };
+
+    appData.categories[type].forEach((category) => {
         const categoryTag = document.createElement("div");
         categoryTag.className = "category-tag";
         categoryTag.innerHTML = `
             ${category}
-            <i class="fas fa-times delete-category" data-category="${category}"></i>
+            <i class="fas fa-times delete-category" data-type="${type}" data-category="${category}"></i>
         `;
-        categoryList.appendChild(categoryTag);
+        container.appendChild(categoryTag);
     });
 
     // Add event listeners to delete buttons
-    document.querySelectorAll(".delete-category").forEach((button) => {
+    container.querySelectorAll(".delete-category").forEach((button) => {
         button.addEventListener("click", (e) => {
+            const type = e.target.getAttribute("data-type");
             const category = e.target.getAttribute("data-category");
-            deleteCategory(category);
+            deleteCategory(type, category);
         });
     });
+}
+
+// Open category modal for specific type
+function openCategoryModal(type) {
+    const modal = document.getElementById("categoryModal");
+    const modalTitle = modal.querySelector(".modal-title");
+    const categoryTypeInput = document.getElementById("categoryType");
+    const submitBtn = modal.querySelector('button[type="submit"]');
+
+    const typeLabels = {
+        income: "Income Category",
+        expense: "Expense Category",
+        asset: "Asset Type",
+        liability: "Liability Type",
+    };
+
+    modalTitle.textContent = `Add ${typeLabels[type]}`;
+    categoryTypeInput.value = type;
+    submitBtn.textContent = `Add ${typeLabels[type]}`;
+
+    openModal("categoryModal");
+}
+
+// Check if a category is currently in use
+function isCategoryInUse(type, category) {
+    switch (type) {
+        case "income":
+            return appData.incomes.some((income) => income.category === category);
+        case "expense":
+            return appData.expenses.some((expense) => expense.category === category);
+        case "asset":
+            return appData.assets.some((asset) => asset.type === category);
+        case "liability":
+            return appData.liabilities.some((liability) => liability.type === category);
+        default:
+            return false;
+    }
+}
+
+// Populate category selects in modals
+function populateCategorySelects() {
+    const incomeCategory = document.getElementById("incomeCategory");
+    const expenseCategory = document.getElementById("expenseCategory");
+    const assetType = document.getElementById("assetType");
+    const liabilityType = document.getElementById("liabilityType");
+
+    // Clear existing options except the first one
+    [incomeCategory, expenseCategory, assetType, liabilityType].forEach((select) => {
+        while (select.children.length > 1) {
+            select.removeChild(select.lastChild);
+        }
+    });
+
+    // Add income categories
+    appData.categories.income.forEach((category) => {
+        const option = document.createElement("option");
+        option.value = category;
+        option.textContent = category;
+        incomeCategory.appendChild(option);
+    });
+
+    // Add expense categories
+    appData.categories.expense.forEach((category) => {
+        const option = document.createElement("option");
+        option.value = category;
+        option.textContent = category;
+        expenseCategory.appendChild(option);
+    });
+
+    // Add asset types
+    appData.categories.asset.forEach((type) => {
+        const option = document.createElement("option");
+        option.value = type;
+        option.textContent = type;
+        assetType.appendChild(option);
+    });
+
+    // Add liability types
+    appData.categories.liability.forEach((type) => {
+        const option = document.createElement("option");
+        option.value = type;
+        option.textContent = type;
+        liabilityType.appendChild(option);
+    });
+}
+
+// Clear all data
+function clearData() {
+    if (confirm("Are you sure you want to clear all data? This action cannot be undone.")) {
+        appData = {
+            incomes: [],
+            expenses: [],
+            assets: [],
+            liabilities: [],
+            categories: {
+                income: ["Salary", "Freelance", "Investment", "Rental", "Business"],
+                expense: ["Housing", "Food", "Transportation", "Utilities", "Entertainment", "Healthcare", "Education"],
+                asset: ["Cash", "Bank Account", "Investment", "Property", "Vehicle", "Other"],
+                liability: ["Credit Card", "Loan", "Mortgage", "Other"],
+            },
+        };
+        saveData();
+        updateSummaryCards();
+        renderTables();
+        renderAllCategories();
+        populateCategorySelects();
+    }
+}
+
+// Render categories in settings
+function renderCategories() {
+    renderAllCategories(); // Use the new function that handles all category types
 }
 
 // Format currency
@@ -323,12 +471,21 @@ function addCategory(e) {
     }
 }
 
-// Delete category
-function deleteCategory(category) {
-    if (confirm(`Are you sure you want to delete the "${category}" category?`)) {
-        appData.categories = appData.categories.filter((cat) => cat !== category);
+// Delete category 
+function deleteCategory(type, category) {
+    if (confirm(`Are you sure you want to delete the "${category}" ${type}?`)) {
+        // Check if category is being used
+        if (isCategoryInUse(type, category)) {
+            alert(
+                `Cannot delete "${category}" because it is currently in use. Please update the relevant records first.`
+            );
+            return;
+        }
+
+        appData.categories[type] = appData.categories[type].filter((cat) => cat !== category);
         saveData();
-        renderCategories();
+        renderAllCategories();
+        populateCategorySelects(); // Update dropdowns
     }
 }
 
@@ -371,7 +528,7 @@ function renderIncomeTable() {
         row.innerHTML = `
             <td>${income.source}</td>
             <td>${income.category}</td>
-            <td>$${formatCurrency(income.amount)}</td>
+            <td>£${formatCurrency(income.amount)}</td>
             <td>
                 <button class="action-btn edit-income" data-id="${income.id}">
                     <i class="fas fa-edit"></i>
@@ -411,7 +568,7 @@ function renderExpenseTable() {
         row.innerHTML = `
             <td>${expense.description}</td>
             <td>${expense.category}</td>
-            <td>$${formatCurrency(expense.amount)}</td>
+            <td>£${formatCurrency(expense.amount)}</td>
             <td>
                 <button class="action-btn edit-expense" data-id="${expense.id}">
                     <i class="fas fa-edit"></i>
@@ -451,7 +608,7 @@ function renderAssetTable() {
         row.innerHTML = `
             <td>${asset.name}</td>
             <td>${asset.type}</td>
-            <td>$${formatCurrency(asset.value)}</td>
+            <td>£${formatCurrency(asset.value)}</td>
             <td>
                 <button class="action-btn edit-asset" data-id="${asset.id}">
                     <i class="fas fa-edit"></i>
@@ -491,7 +648,7 @@ function renderLiabilityTable() {
         row.innerHTML = `
             <td>${liability.name}</td>
             <td>${liability.type}</td>
-            <td>$${formatCurrency(liability.amount)}</td>
+            <td>£${formatCurrency(liability.amount)}</td>
             <td>
                 <button class="action-btn edit-liability" data-id="${liability.id}">
                     <i class="fas fa-edit"></i>
