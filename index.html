@@ -79,160 +79,131 @@
                             <div class="summary-card balance">
                                 <div class="summary-label">Monthly Balance</div>
                                 <div class="summary-value" id="monthlyBalance">£0.00</div>
-                                <!-- <div class="summary-change">+5.3% from last month</div> -->
                             </div>
                             <div class="summary-card income">
                                 <div class="summary-label">Total Monthly Income</div>
                                 <div class="summary-value" id="totalIncome">£0.00</div>
-                                <!-- <div class="summary-change">+2.5% from last month</div> -->
                             </div>
                             <div class="summary-card expenses">
                                 <div class="summary-label">Total Monthly Expenses</div>
                                 <div class="summary-value" id="totalExpenses">£0.00</div>
-                                <!-- <div class="summary-change">-1.2% from last month</div> -->
                             </div>
                             <div class="summary-card net-wealth">
                                 <div class="summary-label">Net Wealth</div>
                                 <div class="summary-value" id="netWealth">£0.00</div>
-                                <!-- <div class="summary-change">+8.7% from last month</div> -->
                             </div>
                         </div>
-
-                        <!-- <div class="card">
-                        <div class="card-header">
-                            <h2 class="card-title">Recent Transactions</h2>
-                            <button class="btn btn-primary">
-                                <i class="fas fa-plus"></i>
-                                Add Transaction
-                            </button>
-                        </div>
-                        <div class="card-body">
-                            <p>Your recent income and expense transactions will appear here.</p>
-                        </div>
-                    </div> -->
                     </div>
 
                     <!-- Income Tab -->
                     <div class="tab-content" id="income">
-                        <h1>Income</h1>
-                        <p class="subtitle">Manage your income sources</p>
+                        <div class="tab-header">
+                            <div>
+                                <h1>Income</h1>
+                                <p class="subtitle">Manage your income sources</p>
+                            </div>
+                            <button class="btn btn-primary" id="addIncomeBtn">
+                                <i class="fas fa-plus"></i>
+                                Add Income
+                            </button>
+                        </div>
 
-                        <div class="card">
-                            <div class="card-header">
-                                <h2 class="card-title">Income Sources</h2>
-                                <button class="btn btn-primary" id="addIncomeBtn">
-                                    <i class="fas fa-plus"></i>
-                                    Add Income
-                                </button>
-                            </div>
-                            <div class="card-body">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Source</th>
-                                            <th>Category</th>
-                                            <th>Amount</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="incomeTableBody">
-                                        <!-- Income entries will be added here dynamically -->
-                                    </tbody>
-                                </table>
-                            </div>
+                        <div class="card-grid" id="incomeCardGrid">
+                            <!-- Income cards will be added here dynamically -->
+                        </div>
+
+                        <div class="empty-state" id="incomeEmptyState">
+                            <i class="fas fa-money-bill-wave"></i>
+                            <h3>No income sources yet</h3>
+                            <p>Add your first income source to get started</p>
+                            <button class="btn btn-primary" id="addIncomeEmptyBtn">
+                                <i class="fas fa-plus"></i>
+                                Add Income
+                            </button>
                         </div>
                     </div>
 
                     <!-- Expenses Tab -->
                     <div class="tab-content" id="expenses">
-                        <h1>Expenses</h1>
-                        <p class="subtitle">Track your monthly expenses</p>
+                        <div class="tab-header">
+                            <div>
+                                <h1>Expenses</h1>
+                                <p class="subtitle">Track your monthly expenses</p>
+                            </div>
+                            <button class="btn btn-primary" id="addExpenseBtn">
+                                <i class="fas fa-plus"></i>
+                                Add Expense
+                            </button>
+                        </div>
 
-                        <div class="card">
-                            <div class="card-header">
-                                <h2 class="card-title">Expense Records</h2>
-                                <button class="btn btn-primary" id="addExpenseBtn">
-                                    <i class="fas fa-plus"></i>
-                                    Add Expense
-                                </button>
-                            </div>
-                            <div class="card-body">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Description</th>
-                                            <th>Category</th>
-                                            <th>Amount</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="expenseTableBody">
-                                        <!-- Expense entries will be added here dynamically -->
-                                    </tbody>
-                                </table>
-                            </div>
+                        <div class="card-grid" id="expenseCardGrid">
+                            <!-- Expense cards will be added here dynamically -->
+                        </div>
+
+                        <div class="empty-state" id="expenseEmptyState">
+                            <i class="fas fa-receipt"></i>
+                            <h3>No expenses yet</h3>
+                            <p>Add your first expense to start tracking</p>
+                            <button class="btn btn-primary" id="addExpenseEmptyBtn">
+                                <i class="fas fa-plus"></i>
+                                Add Expense
+                            </button>
                         </div>
                     </div>
 
                     <!-- Assets Tab -->
                     <div class="tab-content" id="assets">
-                        <h1>Assets</h1>
-                        <p class="subtitle">Track your assets and their values</p>
+                        <div class="tab-header">
+                            <div>
+                                <h1>Assets</h1>
+                                <p class="subtitle">Track your assets and their values</p>
+                            </div>
+                            <button class="btn btn-primary" id="addAssetBtn">
+                                <i class="fas fa-plus"></i>
+                                Add Asset
+                            </button>
+                        </div>
 
-                        <div class="card">
-                            <div class="card-header">
-                                <h2 class="card-title">Your Assets</h2>
-                                <button class="btn btn-primary" id="addAssetBtn">
-                                    <i class="fas fa-plus"></i>
-                                    Add Asset
-                                </button>
-                            </div>
-                            <div class="card-body">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Asset</th>
-                                            <th>Type</th>
-                                            <th>Value</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="assetTableBody">
-                                        <!-- Asset entries will be added here dynamically -->
-                                    </tbody>
-                                </table>
-                            </div>
+                        <div class="card-grid" id="assetCardGrid">
+                            <!-- Asset cards will be added here dynamically -->
+                        </div>
+
+                        <div class="empty-state" id="assetEmptyState">
+                            <i class="fas fa-home"></i>
+                            <h3>No assets yet</h3>
+                            <p>Add your first asset to start tracking</p>
+                            <button class="btn btn-primary" id="addAssetEmptyBtn">
+                                <i class="fas fa-plus"></i>
+                                Add Asset
+                            </button>
                         </div>
                     </div>
 
                     <!-- Liabilities Tab -->
                     <div class="tab-content" id="liabilities">
-                        <h1>Liabilities</h1>
-                        <p class="subtitle">Track your debts and obligations</p>
+                        <div class="tab-header">
+                            <div>
+                                <h1>Liabilities</h1>
+                                <p class="subtitle">Track your debts and obligations</p>
+                            </div>
+                            <button class="btn btn-primary" id="addLiabilityBtn">
+                                <i class="fas fa-plus"></i>
+                                Add Liability
+                            </button>
+                        </div>
 
-                        <div class="card">
-                            <div class="card-header">
-                                <h2 class="card-title">Your Liabilities</h2>
-                                <button class="btn btn-primary" id="addLiabilityBtn">
-                                    <i class="fas fa-plus"></i>
-                                    Add Liability
-                                </button>
-                            </div>
-                            <div class="card-body">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Liability</th>
-                                            <th>Type</th>
-                                            <th>Amount</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="liabilityTableBody">
-                                        <!-- Liability entries will be added here dynamically -->
-                                    </tbody>
-                                </table>
-                            </div>
+                        <div class="card-grid" id="liabilityCardGrid">
+                            <!-- Liability cards will be added here dynamically -->
+                        </div>
+
+                        <div class="empty-state" id="liabilityEmptyState">
+                            <i class="fas fa-credit-card"></i>
+                            <h3>No liabilities yet</h3>
+                            <p>Add your first liability to start tracking</p>
+                            <button class="btn btn-primary" id="addLiabilityEmptyBtn">
+                                <i class="fas fa-plus"></i>
+                                Add Liability
+                            </button>
                         </div>
                     </div>
 
@@ -317,6 +288,7 @@
                                             Export
                                         </button>
                                     </div>
+                                    <hr>
                                     <div class="settings-option">
                                         <div>
                                             <h3>Import Data</h3>
@@ -327,6 +299,7 @@
                                             Import
                                         </button>
                                     </div>
+                                    <hr>
                                     <div class="settings-option">
                                         <div>
                                             <h3>Clear Data</h3>
@@ -491,6 +464,25 @@
                         <button type="submit" class="btn btn-primary">Add Category</button>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <!-- Entry Details Modal -->
+        <div class="modal" id="entryDetailsModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title" id="entryDetailsTitle">Entry Details</h2>
+                    <button class="close-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="entry-details" id="entryDetailsContent">
+                        <!-- Entry details will be populated here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-danger" id="deleteEntryBtn">Delete</button>
+                    <button type="button" class="btn btn-primary" id="editEntryBtn">Edit</button>
+                </div>
             </div>
         </div>
 

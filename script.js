@@ -19,19 +19,22 @@ let appData = {
     },
 };
 
+// Track current entry being viewed/edited
+let currentEntry = null;
+let currentEntryType = null;
+
 // Initialize the app
 function initApp() {
     loadData();
     loadThemePreference();
     setupEventListeners();
-    renderCategories();
+    renderAllCategories();
     updateSummaryCards();
-    renderTables();
+    renderCardViews();
 }
 
 // Migrate old data structure to new one
 function migrateDataStructure() {
-    // If categories is an array (old structure), convert to new structure
     if (Array.isArray(appData.categories)) {
         const oldCategories = appData.categories;
         appData.categories = {
@@ -46,7 +49,7 @@ function migrateDataStructure() {
             asset: ["Cash", "Bank Account", "Investment", "Property", "Vehicle", "Other"],
             liability: ["Credit Card", "Loan", "Mortgage", "Other"],
         };
-        saveData(); // Save the migrated structure
+        saveData();
     }
 }
 
@@ -55,7 +58,7 @@ function loadData() {
     const savedData = localStorage.getItem("budgetFlowData");
     if (savedData) {
         appData = JSON.parse(savedData);
-        migrateDataStructure(); // Add this line
+        migrateDataStructure();
     }
 }
 
@@ -83,13 +86,11 @@ function setupEventListeners() {
     document.getElementById("addAssetBtn").addEventListener("click", () => openModal("assetModal"));
     document.getElementById("addLiabilityBtn").addEventListener("click", () => openModal("liabilityModal"));
 
-    // Category buttons
-    document.querySelectorAll(".add-category-btn").forEach((button) => {
-        button.addEventListener("click", (e) => {
-            const type = e.target.closest(".add-category-btn").getAttribute("data-type");
-            openCategoryModal(type);
-        });
-    });
+    // Empty state buttons
+    document.getElementById("addIncomeEmptyBtn").addEventListener("click", () => openModal("incomeModal"));
+    document.getElementById("addExpenseEmptyBtn").addEventListener("click", () => openModal("expenseModal"));
+    document.getElementById("addAssetEmptyBtn").addEventListener("click", () => openModal("assetModal"));
+    document.getElementById("addLiabilityEmptyBtn").addEventListener("click", () => openModal("liabilityModal"));
 
     // Category buttons
     document.querySelectorAll(".add-category-btn").forEach((button) => {
@@ -104,24 +105,11 @@ function setupEventListeners() {
     document.getElementById("expenseForm").addEventListener("submit", addExpense);
     document.getElementById("assetForm").addEventListener("submit", addAsset);
     document.getElementById("liabilityForm").addEventListener("submit", addLiability);
-    document.getElementById("categoryForm").addEventListener("submit", function(e) {
-        e.preventDefault();
-        const name = document.getElementById("categoryName").value.trim();
-        const type = document.getElementById("categoryType").value;
-    
-        if (!name) return;
-    
-        if (!appData.categories[type].includes(name)) {
-            appData.categories[type].push(name);
-            saveData();
-            renderAllCategories();
-            populateCategorySelects(); // Update dropdowns
-            closeModals();
-            document.getElementById("categoryForm").reset();
-        } else {
-            alert(`${name} already exists in ${type} categories!`);
-        }
-    });
+    document.getElementById("categoryForm").addEventListener("submit", addNewCategory);
+
+    // Entry details modal buttons
+    document.getElementById("editEntryBtn").addEventListener("click", editCurrentEntry);
+    document.getElementById("deleteEntryBtn").addEventListener("click", deleteCurrentEntry);
 
     // Data management buttons
     document.getElementById("exportDataBtn").addEventListener("click", exportData);
@@ -130,7 +118,14 @@ function setupEventListeners() {
 
     // Close modals
     closeModalButtons.forEach((button) => {
-        button.addEventListener("click", closeModals);
+        button.addEventListener("click", function () {
+            const modal = this.closest(".modal");
+            if (modal && modal.id === "entryDetailsModal") {
+                closeDetailsModal();
+            } else {
+                closeModals();
+            }
+        });
     });
 
     // Close modal when clicking outside
@@ -156,7 +151,6 @@ function toggleTheme() {
         icon.classList.add("fa-moon");
     }
 
-    // Save theme preference to localStorage
     localStorage.setItem("budgetFlowTheme", isDarkMode ? "dark" : "light");
 }
 
@@ -164,7 +158,6 @@ function toggleTheme() {
 function loadThemePreference() {
     let savedTheme = localStorage.getItem("budgetFlowTheme");
 
-    // If no theme is saved, use system preference
     if (!savedTheme) {
         savedTheme = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
     }
@@ -181,7 +174,6 @@ function loadThemePreference() {
 
 // Switch between tabs
 function switchTab(tabId) {
-    // Update active tab
     navTabs.forEach((tab) => {
         tab.classList.remove("active");
         if (tab.getAttribute("data-tab") === tabId) {
@@ -189,7 +181,6 @@ function switchTab(tabId) {
         }
     });
 
-    // Update active content
     tabContents.forEach((content) => {
         content.classList.remove("active");
         if (content.id === tabId) {
@@ -199,8 +190,18 @@ function switchTab(tabId) {
 }
 
 // Open modal
+// function openModal(modalId) {
+//     document.getElementById(modalId).style.display = "flex";
+//     // Only populate categories without pre-selection for new entries
+//     if (!modalId.includes("Edit")) {
+//         populateCategorySelects();
+//     }
+// }
+
+// Open modal
 function openModal(modalId) {
     document.getElementById(modalId).style.display = "flex";
+    // Always populate categories - the pre-selection is handled in the edit functions
     populateCategorySelects();
 }
 
@@ -209,6 +210,21 @@ function closeModals() {
     modals.forEach((modal) => {
         modal.style.display = "none";
     });
+    resetModalsToAddMode();
+    // Don't reset currentEntry and currentEntryType here - we need them for editing
+}
+
+// Add a new function to specifically close details modal
+function closeDetailsModal() {
+    console.log("closeDetailsModal called");
+    document.getElementById("entryDetailsModal").style.display = "none";
+    // Don't reset currentEntry and currentEntryType here yet
+    // We'll reset them after the edit modal opens
+}
+
+// Render categories in settings
+function renderCategories() {
+    renderAllCategories(); // Use the new function that handles all category types
 }
 
 // Render all categories in settings
@@ -272,6 +288,595 @@ function openCategoryModal(type) {
     openModal("categoryModal");
 }
 
+// Add income
+function addIncome(e) {
+    e.preventDefault();
+    const source = document.getElementById("incomeSource").value;
+    const category = document.getElementById("incomeCategory").value;
+    const amount = parseFloat(document.getElementById("incomeAmount").value);
+
+    appData.incomes.push({
+        id: Date.now(),
+        source,
+        category,
+        amount,
+    });
+
+    saveData();
+    updateSummaryCards();
+    renderCardViews();
+    closeModals();
+    document.getElementById("incomeForm").reset();
+}
+
+// Add expense
+function addExpense(e) {
+    e.preventDefault();
+    const description = document.getElementById("expenseDescription").value;
+    const category = document.getElementById("expenseCategory").value;
+    const amount = parseFloat(document.getElementById("expenseAmount").value);
+
+    appData.expenses.push({
+        id: Date.now(),
+        description,
+        category,
+        amount,
+    });
+
+    saveData();
+    updateSummaryCards();
+    renderCardViews();
+    closeModals();
+    document.getElementById("expenseForm").reset();
+}
+
+// Add asset
+function addAsset(e) {
+    e.preventDefault();
+    const name = document.getElementById("assetName").value;
+    const type = document.getElementById("assetType").value;
+    const value = parseFloat(document.getElementById("assetValue").value);
+
+    appData.assets.push({
+        id: Date.now(),
+        name,
+        type,
+        value,
+    });
+
+    saveData();
+    updateSummaryCards();
+    renderCardViews();
+    closeModals();
+    document.getElementById("assetForm").reset();
+}
+
+// Add liability
+function addLiability(e) {
+    e.preventDefault();
+    const name = document.getElementById("liabilityName").value;
+    const type = document.getElementById("liabilityType").value;
+    const amount = parseFloat(document.getElementById("liabilityAmount").value);
+
+    appData.liabilities.push({
+        id: Date.now(),
+        name,
+        type,
+        amount,
+    });
+
+    saveData();
+    updateSummaryCards();
+    renderCardViews();
+    closeModals();
+    document.getElementById("liabilityForm").reset();
+}
+
+// Update summary cards
+function updateSummaryCards() {
+    const totalIncome = appData.incomes.reduce((sum, income) => sum + income.amount, 0);
+    const formattedTotalIncome = formatCurrency(totalIncome);
+    const totalExpenses = appData.expenses.reduce((sum, expense) => sum + expense.amount, 0);
+    const formattedTotalExpenses = formatCurrency(totalExpenses);
+    const monthlyBalance = totalIncome - totalExpenses;
+    const formattedTotalMonthlyBalance = formatCurrency(monthlyBalance);
+
+    const totalAssets = appData.assets.reduce((sum, asset) => sum + asset.value, 0);
+    const totalLiabilities = appData.liabilities.reduce((sum, liability) => sum + liability.amount, 0);
+    const netWealth = totalAssets - totalLiabilities;
+    const formattedNetWealth = formatCurrency(netWealth);
+
+    document.getElementById("totalIncome").textContent = `£${formattedTotalIncome}`;
+    document.getElementById("totalExpenses").textContent = `£${formattedTotalExpenses}`;
+    document.getElementById("monthlyBalance").textContent = `£${formattedTotalMonthlyBalance}`;
+    document.getElementById("netWealth").textContent = `£${formattedNetWealth}`;
+}
+
+// Delete income
+function deleteIncome(id) {
+    if (confirm("Are you sure you want to delete this income source?")) {
+        appData.incomes = appData.incomes.filter((income) => income.id !== id);
+        saveData();
+        updateSummaryCards();
+        renderCardViews();
+    }
+}
+
+// Delete expense
+function deleteExpense(id) {
+    if (confirm("Are you sure you want to delete this expense?")) {
+        appData.expenses = appData.expenses.filter((expense) => expense.id !== id);
+        saveData();
+        updateSummaryCards();
+        renderCardViews();
+    }
+}
+
+// Delete asset
+function deleteAsset(id) {
+    if (confirm("Are you sure you want to delete this asset?")) {
+        appData.assets = appData.assets.filter((asset) => asset.id !== id);
+        saveData();
+        updateSummaryCards();
+        renderCardViews();
+    }
+}
+
+// Delete liability
+function deleteLiability(id) {
+    if (confirm("Are you sure you want to delete this liability?")) {
+        appData.liabilities = appData.liabilities.filter((liability) => liability.id !== id);
+        saveData();
+        updateSummaryCards();
+        renderCardViews();
+    }
+}
+
+// Edit income
+function editIncome(id) {
+    const income = appData.incomes.find((inc) => inc.id === id);
+    if (!income) return;
+
+    // Change modal to edit mode FIRST
+    const modal = document.getElementById("incomeModal");
+    const modalTitle = modal.querySelector(".modal-title");
+    const submitBtn = modal.querySelector('button[type="submit"]');
+
+    modalTitle.textContent = "Edit Income Source";
+    submitBtn.textContent = "Update Income";
+    
+    // Remove existing event listeners and add update handler
+    const form = document.getElementById("incomeForm");
+    const newForm = form.cloneNode(true);
+    form.parentNode.replaceChild(newForm, form);
+    
+    document.getElementById("incomeForm").addEventListener("submit", function(e) {
+        e.preventDefault();
+        updateIncome(id);
+    });
+
+    // OPEN the modal first
+    openModal("incomeModal");
+    
+    // THEN set the values (this ensures the selects are populated first)
+    document.getElementById("incomeSource").value = income.source;
+    document.getElementById("incomeCategory").value = income.category;
+    document.getElementById("incomeAmount").value = income.amount;
+}
+
+// Update income
+function updateIncome(id) {
+    const source = document.getElementById("incomeSource").value;
+    const category = document.getElementById("incomeCategory").value;
+    const amount = parseFloat(document.getElementById("incomeAmount").value);
+
+    const incomeIndex = appData.incomes.findIndex((inc) => inc.id === id);
+    if (incomeIndex !== -1) {
+        appData.incomes[incomeIndex] = {
+            id: id,
+            source,
+            category,
+            amount,
+        };
+
+        saveData();
+        updateSummaryCards();
+        renderCardViews();
+        closeModals();
+        resetIncomeForm();
+    }
+}
+
+// Reset income form to add mode
+function resetIncomeForm() {
+    const modal = document.getElementById("incomeModal");
+    const modalTitle = modal.querySelector(".modal-title");
+    const submitBtn = modal.querySelector('button[type="submit"]');
+    const form = document.getElementById("incomeForm");
+
+    modalTitle.textContent = "Add Income Source";
+    submitBtn.textContent = "Add Income";
+
+    // Reset form and event listener
+    const newForm = form.cloneNode(true);
+    form.parentNode.replaceChild(newForm, form);
+    document.getElementById("incomeForm").addEventListener("submit", addIncome);
+    document.getElementById("incomeForm").reset();
+
+    populateCategorySelects();
+}
+
+
+// Edit expense
+function editExpense(id) {
+    console.log(appData);
+    const expense = appData.expenses.find((exp) => exp.id === id); 
+    if (!expense) return;
+
+    // Change modal to edit mode FIRST
+    const modal = document.getElementById("expenseModal");
+    const modalTitle = modal.querySelector(".modal-title");
+    const submitBtn = modal.querySelector('button[type="submit"]');
+
+    modalTitle.textContent = "Edit Expense";
+    submitBtn.textContent = "Update Expense"; 
+    
+    // Remove existing event listeners and add update handler
+    const form = document.getElementById("expenseForm");
+    const newForm = form.cloneNode(true);
+    form.parentNode.replaceChild(newForm, form);
+    
+    document.getElementById("expenseForm").addEventListener("submit", function(e) {
+        e.preventDefault();
+        updateExpense(id);
+    });
+
+    // OPEN the modal first
+    openModal("expenseModal");
+    
+    // THEN set the values (this ensures the selects are populated first)
+    document.getElementById("expenseDescription").value = expense.description;
+    document.getElementById("expenseCategory").value = expense.category;
+    document.getElementById("expenseAmount").value = expense.amount;
+}
+
+// Update expense
+function updateExpense(id) {
+    const description = document.getElementById("expenseDescription").value;
+    const category = document.getElementById("expenseCategory").value;
+    const amount = parseFloat(document.getElementById("expenseAmount").value);
+
+    const expenseIndex = appData.expenses.findIndex((exp) => exp.id === id);
+    if (expenseIndex !== -1) {
+        appData.expenses[expenseIndex] = {
+            id: id,
+            description,
+            category,
+            amount,
+        };
+
+        saveData();
+        updateSummaryCards();
+        renderCardViews();
+        closeModals();
+        resetExpenseForm();
+    }
+}
+
+// Reset expense form to add mode
+function resetExpenseForm() {
+    const modal = document.getElementById("expenseModal");
+    const modalTitle = modal.querySelector(".modal-title");
+    const submitBtn = modal.querySelector('button[type="submit"]');
+    const form = document.getElementById("expenseForm");
+
+    modalTitle.textContent = "Add Expense";
+    submitBtn.textContent = "Add Expense";
+
+    const newForm = form.cloneNode(true);
+    form.parentNode.replaceChild(newForm, form);
+    document.getElementById("expenseForm").addEventListener("submit", addExpense);
+    document.getElementById("expenseForm").reset();
+
+    populateCategorySelects();
+}
+
+// Edit asset
+function editAsset(id) {
+    const asset = appData.assets.find((ast) => ast.id === id); 
+    if (!asset) return;
+
+    // Change modal to edit mode FIRST
+    const modal = document.getElementById("assetModal");
+    const modalTitle = modal.querySelector(".modal-title");
+    const submitBtn = modal.querySelector('button[type="submit"]');
+
+    modalTitle.textContent = "Edit Asset"; // Fixed title
+    submitBtn.textContent = "Update Asset"; // Fixed button text
+    
+    // Remove existing event listeners and add update handler
+    const form = document.getElementById("assetForm");
+    const newForm = form.cloneNode(true);
+    form.parentNode.replaceChild(newForm, form);
+    
+    document.getElementById("assetForm").addEventListener("submit", function(e) {
+        e.preventDefault();
+        updateAsset(id);
+    });
+
+    // OPEN the modal first
+    openModal("assetModal");
+    
+    // THEN set the values (this ensures the selects are populated first)
+    document.getElementById("assetName").value = asset.name; 
+    document.getElementById("assetType").value = asset.type; 
+    document.getElementById("assetValue").value = asset.value; 
+}
+
+// Update asset
+function updateAsset(id) {
+    const name = document.getElementById("assetName").value;
+    const type = document.getElementById("assetType").value;
+    const value = parseFloat(document.getElementById("assetValue").value);
+
+    const assetIndex = appData.assets.findIndex((ast) => ast.id === id);
+    if (assetIndex !== -1) {
+        appData.assets[assetIndex] = {
+            id: id,
+            name,
+            type,
+            value,
+        };
+
+        saveData();
+        updateSummaryCards();
+        renderCardViews();
+        closeModals();
+        resetAssetForm();
+    }
+}
+
+// Reset asset form to add mode
+function resetAssetForm() {
+    const modal = document.getElementById("assetModal");
+    const modalTitle = modal.querySelector(".modal-title");
+    const submitBtn = modal.querySelector('button[type="submit"]');
+    const form = document.getElementById("assetForm");
+
+    modalTitle.textContent = "Add Asset";
+    submitBtn.textContent = "Add Asset";
+
+    const newForm = form.cloneNode(true);
+    form.parentNode.replaceChild(newForm, form);
+    document.getElementById("assetForm").addEventListener("submit", addAsset);
+    document.getElementById("assetForm").reset();
+
+    populateCategorySelects();
+}
+
+// Edit liability
+function editLiability(id) {
+    const liability = appData.liabilities.find((lib) => lib.id === id); 
+    if (!liability) return;
+
+    // Change modal to edit mode FIRST
+    const modal = document.getElementById("liabilityModal");
+    const modalTitle = modal.querySelector(".modal-title");
+    const submitBtn = modal.querySelector('button[type="submit"]');
+
+    modalTitle.textContent = "Edit Liability";
+    submitBtn.textContent = "Update Liability"; 
+    
+    // Remove existing event listeners and add update handler
+    const form = document.getElementById("liabilityForm");
+    const newForm = form.cloneNode(true);
+    form.parentNode.replaceChild(newForm, form);
+    
+    document.getElementById("liabilityForm").addEventListener("submit", function(e) {
+        e.preventDefault();
+        updateLiability(id);
+    });
+
+    // OPEN the modal first
+    openModal("liabilityModal");
+    
+    // THEN set the values (this ensures the selects are populated first)
+    document.getElementById("liabilityName").value = liability.name; 
+    document.getElementById("liabilityType").value = liability.type;
+    document.getElementById("liabilityAmount").value = liability.amount;
+}
+
+// Update liability
+function updateLiability(id) {
+    const name = document.getElementById("liabilityName").value;
+    const type = document.getElementById("liabilityType").value;
+    const amount = parseFloat(document.getElementById("liabilityAmount").value);
+
+    const liabilityIndex = appData.liabilities.findIndex((lib) => lib.id === id);
+    if (liabilityIndex !== -1) {
+        appData.liabilities[liabilityIndex] = {
+            id: id,
+            name,
+            type,
+            amount,
+        };
+
+        saveData();
+        updateSummaryCards();
+        renderCardViews();
+        closeModals();
+        resetLiabilityForm();
+    }
+}
+
+// Reset liability form to add mode
+function resetLiabilityForm() {
+    const modal = document.getElementById("liabilityModal");
+    const modalTitle = modal.querySelector(".modal-title");
+    const submitBtn = modal.querySelector('button[type="submit"]');
+    const form = document.getElementById("liabilityForm");
+
+    modalTitle.textContent = "Add Liability";
+    submitBtn.textContent = "Add Liability";
+
+    const newForm = form.cloneNode(true);
+    form.parentNode.replaceChild(newForm, form);
+    document.getElementById("liabilityForm").addEventListener("submit", addLiability);
+    document.getElementById("liabilityForm").reset();
+
+    populateCategorySelects();
+}
+
+// Export data
+function exportData() {
+    const dataStr = JSON.stringify(appData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: "application/json" });
+
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "budgetflow_data.json";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+// Import data
+function importData() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json";
+
+    input.onchange = (e) => {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+
+        reader.onload = (event) => {
+            try {
+                const importedData = JSON.parse(event.target.result);
+                appData = importedData;
+                saveData();
+                updateSummaryCards();
+                renderCardViews();
+                renderAllCategories();
+                populateCategorySelects();
+                alert("Data imported successfully!");
+            } catch (error) {
+                alert("Error importing data. Please make sure you selected a valid JSON file.");
+            }
+        };
+
+        reader.readAsText(file);
+    };
+
+    input.click();
+}
+
+// Clear all data
+function clearData() {
+    if (confirm("Are you sure you want to clear all data? This action cannot be undone.")) {
+        appData = {
+            incomes: [],
+            expenses: [],
+            assets: [],
+            liabilities: [],
+            categories: {
+                income: ["Salary", "Freelance", "Investment", "Rental", "Business"],
+                expense: ["Housing", "Food", "Transportation", "Utilities", "Entertainment", "Healthcare", "Education"],
+                asset: ["Cash", "Bank Account", "Investment", "Property", "Vehicle", "Other"],
+                liability: ["Credit Card", "Loan", "Mortgage", "Other"],
+            },
+        };
+        saveData();
+        updateSummaryCards();
+        renderCardViews();
+        renderAllCategories();
+        populateCategorySelects();
+    }
+}
+
+// Reset modals to add mode
+function resetModalsToAddMode() {
+    const modals = {
+        incomeModal: {
+            title: "Add Income Source",
+            button: "Add Income",
+            form: "incomeForm",
+            resetFunction: resetIncomeForm,
+        },
+        expenseModal: {
+            title: "Add Expense",
+            button: "Add Expense",
+            form: "expenseForm",
+            resetFunction: resetExpenseForm,
+        },
+        assetModal: {
+            title: "Add Asset",
+            button: "Add Asset",
+            form: "assetForm",
+            resetFunction: resetAssetForm,
+        },
+        liabilityModal: {
+            title: "Add Liability",
+            button: "Add Liability",
+            form: "liabilityForm",
+            resetFunction: resetLiabilityForm,
+        },
+    };
+
+    Object.keys(modals).forEach((modalId) => {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            const modalTitle = modal.querySelector(".modal-title");
+            const submitBtn = modal.querySelector('button[type="submit"]');
+
+            modalTitle.textContent = modals[modalId].title;
+            submitBtn.textContent = modals[modalId].button;
+
+            // Call the reset function for each form
+            modals[modalId].resetFunction();
+        }
+    });
+}
+
+// Add category
+function addNewCategory(e) {
+    e.preventDefault();
+    const name = document.getElementById("categoryName").value.trim();
+    const type = document.getElementById("categoryType").value;
+
+    if (!name) return;
+
+    if (!appData.categories[type].includes(name)) {
+        appData.categories[type].push(name);
+        saveData();
+        renderAllCategories();
+        populateCategorySelects();
+        closeModals();
+        document.getElementById("categoryForm").reset();
+    } else {
+        alert(`${name} already exists in ${type} categories!`);
+    }
+}
+
+// Delete category
+function deleteCategory(type, category) {
+    if (confirm(`Are you sure you want to delete the "${category}" ${type}?`)) {
+        if (isCategoryInUse(type, category)) {
+            alert(
+                `Cannot delete "${category}" because it is currently in use. Please update the relevant records first.`
+            );
+            return;
+        }
+
+        appData.categories[type] = appData.categories[type].filter((cat) => cat !== category);
+        saveData();
+        renderAllCategories();
+        populateCategorySelects();
+    }
+}
+
 // Check if a category is currently in use
 function isCategoryInUse(type, category) {
     switch (type) {
@@ -288,8 +893,10 @@ function isCategoryInUse(type, category) {
     }
 }
 
-// Populate category selects in modals
-function populateCategorySelects() {
+// Populate category selects in modals with optional pre-selected values
+function populateCategorySelects(preSelectedValues = {}) {
+    console.log("populateCategorySelects called with:", preSelectedValues);
+    
     const incomeCategory = document.getElementById("incomeCategory");
     const expenseCategory = document.getElementById("expenseCategory");
     const assetType = document.getElementById("assetType");
@@ -333,34 +940,22 @@ function populateCategorySelects() {
         option.textContent = type;
         liabilityType.appendChild(option);
     });
-}
 
-// Clear all data
-function clearData() {
-    if (confirm("Are you sure you want to clear all data? This action cannot be undone.")) {
-        appData = {
-            incomes: [],
-            expenses: [],
-            assets: [],
-            liabilities: [],
-            categories: {
-                income: ["Salary", "Freelance", "Investment", "Rental", "Business"],
-                expense: ["Housing", "Food", "Transportation", "Utilities", "Entertainment", "Healthcare", "Education"],
-                asset: ["Cash", "Bank Account", "Investment", "Property", "Vehicle", "Other"],
-                liability: ["Credit Card", "Loan", "Mortgage", "Other"],
-            },
-        };
-        saveData();
-        updateSummaryCards();
-        renderTables();
-        renderAllCategories();
-        populateCategorySelects();
+    // Set pre-selected values if provided
+    if (preSelectedValues.income) {
+        incomeCategory.value = preSelectedValues.income;
     }
-}
-
-// Render categories in settings
-function renderCategories() {
-    renderAllCategories(); // Use the new function that handles all category types
+    if (preSelectedValues.expense) {
+        expenseCategory.value = preSelectedValues.expense;
+    }
+    if (preSelectedValues.asset) {
+        assetType.value = preSelectedValues.asset;
+    }
+    if (preSelectedValues.liability) {
+        liabilityType.value = preSelectedValues.liability;
+    }
+    
+    console.log("Category selects populated", preSelectedValues);
 }
 
 // Format currency
@@ -371,712 +966,322 @@ function formatCurrency(number) {
     });
 }
 
-// Add income
-function addIncome(e) {
-    e.preventDefault();
-    const source = document.getElementById("incomeSource").value;
-    const category = document.getElementById("incomeCategory").value;
-    const amount = parseFloat(document.getElementById("incomeAmount").value);
-
-    appData.incomes.push({
-        id: Date.now(),
-        source,
-        category,
-        amount,
-    });
-
-    saveData();
-    updateSummaryCards();
-    renderTables();
-    closeModals();
-    document.getElementById("incomeForm").reset();
+// Render card views instead of tables
+function renderCardViews() {
+    renderIncomeCards();
+    renderExpenseCards();
+    renderAssetCards();
+    renderLiabilityCards();
 }
 
-// Add expense
-function addExpense(e) {
-    e.preventDefault();
-    const description = document.getElementById("expenseDescription").value;
-    const category = document.getElementById("expenseCategory").value;
-    const amount = parseFloat(document.getElementById("expenseAmount").value);
+// Render income cards
+function renderIncomeCards() {
+    const grid = document.getElementById("incomeCardGrid");
+    const emptyState = document.getElementById("incomeEmptyState");
 
-    appData.expenses.push({
-        id: Date.now(),
-        description,
-        category,
-        amount,
-    });
+    grid.innerHTML = "";
 
-    saveData();
-    updateSummaryCards();
-    renderTables();
-    closeModals();
-    document.getElementById("expenseForm").reset();
-}
-
-// Add asset
-function addAsset(e) {
-    e.preventDefault();
-    const name = document.getElementById("assetName").value;
-    const type = document.getElementById("assetType").value;
-    const value = parseFloat(document.getElementById("assetValue").value);
-
-    appData.assets.push({
-        id: Date.now(),
-        name,
-        type,
-        value,
-    });
-
-    saveData();
-    updateSummaryCards();
-    renderTables();
-    closeModals();
-    document.getElementById("assetForm").reset();
-}
-
-// Add liability
-function addLiability(e) {
-    e.preventDefault();
-    const name = document.getElementById("liabilityName").value;
-    const type = document.getElementById("liabilityType").value;
-    const amount = parseFloat(document.getElementById("liabilityAmount").value);
-
-    appData.liabilities.push({
-        id: Date.now(),
-        name,
-        type,
-        amount,
-    });
-
-    saveData();
-    updateSummaryCards();
-    renderTables();
-    closeModals();
-    document.getElementById("liabilityForm").reset();
-}
-
-// Add category
-function addCategory(e) {
-    e.preventDefault();
-    const name = document.getElementById("categoryName").value;
-
-    if (!appData.categories.includes(name)) {
-        appData.categories.push(name);
-        saveData();
-        renderCategories();
-        closeModals();
-        document.getElementById("categoryForm").reset();
+    if (appData.incomes.length === 0) {
+        grid.style.display = "none";
+        emptyState.style.display = "block";
     } else {
-        alert("Category already exists!");
+        grid.style.display = "grid";
+        emptyState.style.display = "none";
+
+        appData.incomes.forEach((income) => {
+            const card = createIncomeCard(income);
+            grid.appendChild(card);
+        });
     }
 }
 
-// Delete category 
-function deleteCategory(type, category) {
-    if (confirm(`Are you sure you want to delete the "${category}" ${type}?`)) {
-        // Check if category is being used
-        if (isCategoryInUse(type, category)) {
-            alert(
-                `Cannot delete "${category}" because it is currently in use. Please update the relevant records first.`
-            );
-            return;
+// Create income card
+function createIncomeCard(income) {
+    const card = document.createElement("div");
+    card.className = "entry-card income";
+    card.innerHTML = `
+        <div class="entry-header">
+            <div>
+                <div class="entry-name">${income.source}</div>
+                <div class="entry-category">${income.category}</div>
+            </div>
+            <div class="entry-amount income">£${formatCurrency(income.amount)}</div>
+        </div>
+    `;
+
+    card.addEventListener("click", () => {
+        showEntryDetails(income, "income");
+    });
+
+    return card;
+}
+
+// Render expense cards
+function renderExpenseCards() {
+    const grid = document.getElementById("expenseCardGrid");
+    const emptyState = document.getElementById("expenseEmptyState");
+
+    grid.innerHTML = "";
+
+    if (appData.expenses.length === 0) {
+        grid.style.display = "none";
+        emptyState.style.display = "block";
+    } else {
+        grid.style.display = "grid";
+        emptyState.style.display = "none";
+
+        appData.expenses.forEach((expense) => {
+            const card = createExpenseCard(expense);
+            grid.appendChild(card);
+        });
+    }
+}
+
+// Create expense card
+function createExpenseCard(expense) {
+    const card = document.createElement("div");
+    card.className = "entry-card expense";
+    card.innerHTML = `
+        <div class="entry-header">
+            <div>
+                <div class="entry-name">${expense.description}</div>
+                <div class="entry-category">${expense.category}</div>
+            </div>
+            <div class="entry-amount expense">£${formatCurrency(expense.amount)}</div>
+        </div>
+    `;
+
+    card.addEventListener("click", () => {
+        showEntryDetails(expense, "expense");
+    });
+
+    return card;
+}
+
+// Render asset cards
+function renderAssetCards() {
+    const grid = document.getElementById("assetCardGrid");
+    const emptyState = document.getElementById("assetEmptyState");
+
+    grid.innerHTML = "";
+
+    if (appData.assets.length === 0) {
+        grid.style.display = "none";
+        emptyState.style.display = "block";
+    } else {
+        grid.style.display = "grid";
+        emptyState.style.display = "none";
+
+        appData.assets.forEach((asset) => {
+            const card = createAssetCard(asset);
+            grid.appendChild(card);
+        });
+    }
+}
+
+// Create asset card
+function createAssetCard(asset) {
+    const card = document.createElement("div");
+    card.className = "entry-card asset";
+    card.innerHTML = `
+        <div class="entry-header">
+            <div>
+                <div class="entry-name">${asset.name}</div>
+                <div class="entry-category">${asset.type}</div>
+            </div>
+            <div class="entry-amount asset">£${formatCurrency(asset.value)}</div>
+        </div>
+    `;
+
+    card.addEventListener("click", () => {
+        showEntryDetails(asset, "asset");
+    });
+
+    return card;
+}
+
+// Render liability cards
+function renderLiabilityCards() {
+    const grid = document.getElementById("liabilityCardGrid");
+    const emptyState = document.getElementById("liabilityEmptyState");
+
+    grid.innerHTML = "";
+
+    if (appData.liabilities.length === 0) {
+        grid.style.display = "none";
+        emptyState.style.display = "block";
+    } else {
+        grid.style.display = "grid";
+        emptyState.style.display = "none";
+
+        appData.liabilities.forEach((liability) => {
+            const card = createLiabilityCard(liability);
+            grid.appendChild(card);
+        });
+    }
+}
+
+// Create liability card
+function createLiabilityCard(liability) {
+    const card = document.createElement("div");
+    card.className = "entry-card liability";
+    card.innerHTML = `
+        <div class="entry-header">
+            <div>
+                <div class="entry-name">${liability.name}</div>
+                <div class="entry-category">${liability.type}</div>
+            </div>
+            <div class="entry-amount liability">£${formatCurrency(liability.amount)}</div>
+        </div>
+    `;
+
+    card.addEventListener("click", () => {
+        showEntryDetails(liability, "liability");
+    });
+
+    return card;
+}
+
+// Show entry details in modal
+function showEntryDetails(entry, type) {
+    currentEntry = entry;
+    currentEntryType = type;
+
+    const modal = document.getElementById("entryDetailsModal");
+    const title = document.getElementById("entryDetailsTitle");
+    const content = document.getElementById("entryDetailsContent");
+
+    // Set title based on type
+    const typeTitles = {
+        income: "Income Details",
+        expense: "Expense Details",
+        asset: "Asset Details",
+        liability: "Liability Details",
+    };
+    title.textContent = typeTitles[type] || "Entry Details";
+
+    // Create content based on type
+    let detailsHTML = "";
+
+    if (type === "income") {
+        detailsHTML = `
+            <div class="entry-details-grid">
+                <div class="entry-detail">
+                    <span class="entry-detail-label">Source</span>
+                    <span class="entry-detail-value">${entry.source}</span>
+                </div>
+                <div class="entry-detail">
+                    <span class="entry-detail-label">Category</span>
+                    <span class="entry-detail-value">${entry.category}</span>
+                </div>
+                <div class="entry-detail">
+                    <span class="entry-detail-label">Amount</span>
+                    <span class="entry-detail-value">£${formatCurrency(entry.amount)}</span>
+                </div>
+            </div>
+        `;
+    } else if (type === "expense") {
+        detailsHTML = `
+            <div class="entry-details-grid">
+                <div class="entry-detail">
+                    <span class="entry-detail-label">Description</span>
+                    <span class="entry-detail-value">${entry.description}</span>
+                </div>
+                <div class="entry-detail">
+                    <span class="entry-detail-label">Category</span>
+                    <span class="entry-detail-value">${entry.category}</span>
+                </div>
+                <div class="entry-detail">
+                    <span class="entry-detail-label">Amount</span>
+                    <span class="entry-detail-value">£${formatCurrency(entry.amount)}</span>
+                </div>
+            </div>
+        `;
+    } else if (type === "asset") {
+        detailsHTML = `
+            <div class="entry-details-grid">
+                <div class="entry-detail">
+                    <span class="entry-detail-label">Asset Name</span>
+                    <span class="entry-detail-value">${entry.name}</span>
+                </div>
+                <div class="entry-detail">
+                    <span class="entry-detail-label">Type</span>
+                    <span class="entry-detail-value">${entry.type}</span>
+                </div>
+                <div class="entry-detail">
+                    <span class="entry-detail-label">Value</span>
+                    <span class="entry-detail-value">£${formatCurrency(entry.value)}</span>
+                </div>
+            </div>
+        `;
+    } else if (type === "liability") {
+        detailsHTML = `
+            <div class="entry-details-grid">
+                <div class="entry-detail">
+                    <span class="entry-detail-label">Liability Name</span>
+                    <span class="entry-detail-value">${entry.name}</span>
+                </div>
+                <div class="entry-detail">
+                    <span class="entry-detail-label">Type</span>
+                    <span class="entry-detail-value">${entry.type}</span>
+                </div>
+                <div class="entry-detail">
+                    <span class="entry-detail-label">Amount</span>
+                    <span class="entry-detail-value">£${formatCurrency(entry.amount)}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    content.innerHTML = detailsHTML;
+    modal.style.display = "flex";
+}
+
+// Update the editCurrentEntry function
+function editCurrentEntry() {
+    if (!currentEntry || !currentEntryType) return;
+
+    closeDetailsModal(); // Use the new function instead of closeModals()
+
+    // Open appropriate edit modal based on type
+    switch (currentEntryType) {
+        case "income":
+            editIncome(currentEntry.id);
+            break;
+        case "expense":
+            editExpense(currentEntry.id);
+            break;
+        case "asset":
+            editAsset(currentEntry.id);
+            break;
+        case "liability":
+            editLiability(currentEntry.id);
+            break;
+        default:
+            console.log("Unknown entry type:", currentEntryType);
+    }
+}
+
+// Delete current entry
+function deleteCurrentEntry() {
+    if (!currentEntry || !currentEntryType) return;
+
+    if (confirm("Are you sure you want to delete this entry?")) {
+        switch (currentEntryType) {
+            case "income":
+                deleteIncome(currentEntry.id);
+                break;
+            case "expense":
+                deleteExpense(currentEntry.id);
+                break;
+            case "asset":
+                deleteAsset(currentEntry.id);
+                break;
+            case "liability":
+                deleteLiability(currentEntry.id);
+                break;
         }
-
-        appData.categories[type] = appData.categories[type].filter((cat) => cat !== category);
-        saveData();
-        renderAllCategories();
-        populateCategorySelects(); // Update dropdowns
-    }
-}
-
-// Update summary cards
-function updateSummaryCards() {
-    const totalIncome = appData.incomes.reduce((sum, income) => sum + income.amount, 0);
-    const formattedTotalIncome = formatCurrency(totalIncome);
-    const totalExpenses = appData.expenses.reduce((sum, expense) => sum + expense.amount, 0);
-    const formattedTotalExpenses = formatCurrency(totalExpenses);
-    const monthlyBalance = totalIncome - totalExpenses;
-    const formattedTotalMonthlyBalance = formatCurrency(monthlyBalance);
-
-    const totalAssets = appData.assets.reduce((sum, asset) => sum + asset.value, 0);
-    const totalLiabilities = appData.liabilities.reduce((sum, liability) => sum + liability.amount, 0);
-    const netWealth = totalAssets - totalLiabilities;
-    const formattedNetWealth = formatCurrency(netWealth);
-
-    // document.getElementById('totalIncome').textContent = `£${totalIncome.toFixed(2)}`;
-    document.getElementById("totalIncome").textContent = `£${formattedTotalIncome}`;
-    document.getElementById("totalExpenses").textContent = `£${formattedTotalExpenses}`;
-    document.getElementById("monthlyBalance").textContent = `£${formattedTotalMonthlyBalance}`;
-    document.getElementById("netWealth").textContent = `£${formattedNetWealth}`;
-}
-
-// Render tables
-function renderTables() {
-    renderIncomeTable();
-    renderExpenseTable();
-    renderAssetTable();
-    renderLiabilityTable();
-}
-
-// Update renderIncomeTable function
-function renderIncomeTable() {
-    const tableBody = document.getElementById("incomeTableBody");
-    tableBody.innerHTML = "";
-
-    appData.incomes.forEach((income) => {
-        const row = document.createElement("tr");
-        row.innerHTML = `
-            <td>${income.source}</td>
-            <td>${income.category}</td>
-            <td>£${formatCurrency(income.amount)}</td>
-            <td>
-                <button class="action-btn edit-income" data-id="${income.id}">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button class="action-btn delete-income delete" data-id="${income.id}">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </td>
-        `;
-        tableBody.appendChild(row);
-    });
-
-    // Add event listeners to edit buttons
-    document.querySelectorAll(".edit-income").forEach((button) => {
-        button.addEventListener("click", (e) => {
-            const id = parseInt(e.target.closest("button").getAttribute("data-id"));
-            editIncome(id);
-        });
-    });
-
-    // Add event listeners to delete buttons
-    document.querySelectorAll(".delete-income").forEach((button) => {
-        button.addEventListener("click", (e) => {
-            const id = parseInt(e.target.closest("button").getAttribute("data-id"));
-            deleteIncome(id);
-        });
-    });
-}
-
-// Update renderExpenseTable function
-function renderExpenseTable() {
-    const tableBody = document.getElementById("expenseTableBody");
-    tableBody.innerHTML = "";
-
-    appData.expenses.forEach((expense) => {
-        const row = document.createElement("tr");
-        row.innerHTML = `
-            <td>${expense.description}</td>
-            <td>${expense.category}</td>
-            <td>£${formatCurrency(expense.amount)}</td>
-            <td>
-                <button class="action-btn edit-expense" data-id="${expense.id}">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button class="action-btn delete-expense delete" data-id="${expense.id}">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </td>
-        `;
-        tableBody.appendChild(row);
-    });
-
-    // Add event listeners to edit buttons
-    document.querySelectorAll(".edit-expense").forEach((button) => {
-        button.addEventListener("click", (e) => {
-            const id = parseInt(e.target.closest("button").getAttribute("data-id"));
-            editExpense(id);
-        });
-    });
-
-    // Add event listeners to delete buttons
-    document.querySelectorAll(".delete-expense").forEach((button) => {
-        button.addEventListener("click", (e) => {
-            const id = parseInt(e.target.closest("button").getAttribute("data-id"));
-            deleteExpense(id);
-        });
-    });
-}
-
-// Update renderAssetTable function
-function renderAssetTable() {
-    const tableBody = document.getElementById("assetTableBody");
-    tableBody.innerHTML = "";
-
-    appData.assets.forEach((asset) => {
-        const row = document.createElement("tr");
-        row.innerHTML = `
-            <td>${asset.name}</td>
-            <td>${asset.type}</td>
-            <td>£${formatCurrency(asset.value)}</td>
-            <td>
-                <button class="action-btn edit-asset" data-id="${asset.id}">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button class="action-btn delete-asset delete" data-id="${asset.id}">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </td>
-        `;
-        tableBody.appendChild(row);
-    });
-
-    // Add event listeners to edit buttons
-    document.querySelectorAll(".edit-asset").forEach((button) => {
-        button.addEventListener("click", (e) => {
-            const id = parseInt(e.target.closest("button").getAttribute("data-id"));
-            editAsset(id);
-        });
-    });
-
-    // Add event listeners to delete buttons
-    document.querySelectorAll(".delete-asset").forEach((button) => {
-        button.addEventListener("click", (e) => {
-            const id = parseInt(e.target.closest("button").getAttribute("data-id"));
-            deleteAsset(id);
-        });
-    });
-}
-
-// Update renderLiabilityTable function
-function renderLiabilityTable() {
-    const tableBody = document.getElementById("liabilityTableBody");
-    tableBody.innerHTML = "";
-
-    appData.liabilities.forEach((liability) => {
-        const row = document.createElement("tr");
-        row.innerHTML = `
-            <td>${liability.name}</td>
-            <td>${liability.type}</td>
-            <td>£${formatCurrency(liability.amount)}</td>
-            <td>
-                <button class="action-btn edit-liability" data-id="${liability.id}">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button class="action-btn delete-liability delete" data-id="${liability.id}">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </td>
-        `;
-        tableBody.appendChild(row);
-    });
-
-    // Add event listeners to edit buttons
-    document.querySelectorAll(".edit-liability").forEach((button) => {
-        button.addEventListener("click", (e) => {
-            const id = parseInt(e.target.closest("button").getAttribute("data-id"));
-            editLiability(id);
-        });
-    });
-
-    // Add event listeners to delete buttons
-    document.querySelectorAll(".delete-liability").forEach((button) => {
-        button.addEventListener("click", (e) => {
-            const id = parseInt(e.target.closest("button").getAttribute("data-id"));
-            deleteLiability(id);
-        });
-    });
-}
-
-// Delete income
-function deleteIncome(id) {
-    if (confirm("Are you sure you want to delete this income source?")) {
-        appData.incomes = appData.incomes.filter((income) => income.id !== id);
-        saveData();
-        updateSummaryCards();
-        renderTables();
-    }
-}
-
-// Delete expense
-function deleteExpense(id) {
-    if (confirm("Are you sure you want to delete this expense?")) {
-        appData.expenses = appData.expenses.filter((expense) => expense.id !== id);
-        saveData();
-        updateSummaryCards();
-        renderTables();
-    }
-}
-
-// Delete asset
-function deleteAsset(id) {
-    if (confirm("Are you sure you want to delete this asset?")) {
-        appData.assets = appData.assets.filter((asset) => asset.id !== id);
-        saveData();
-        updateSummaryCards();
-        renderTables();
-    }
-}
-
-// Delete liability
-function deleteLiability(id) {
-    if (confirm("Are you sure you want to delete this liability?")) {
-        appData.liabilities = appData.liabilities.filter((liability) => liability.id !== id);
-        saveData();
-        updateSummaryCards();
-        renderTables();
-    }
-}
-
-// Edit income
-function editIncome(id) {
-    const income = appData.incomes.find((inc) => inc.id === id);
-    if (!income) return;
-
-    document.getElementById("incomeSource").value = income.source;
-    document.getElementById("incomeCategory").value = income.category;
-    document.getElementById("incomeAmount").value = income.amount;
-
-    // Change modal to edit mode
-    const modal = document.getElementById("incomeModal");
-    const modalTitle = modal.querySelector(".modal-title");
-    const submitBtn = modal.querySelector('button[type="submit"]');
-
-    modalTitle.textContent = "Edit Income Source";
-    submitBtn.textContent = "Update Income";
-    submitBtn.onclick = (e) => {
-        e.preventDefault();
-        updateIncome(id);
-    };
-
-    openModal("incomeModal");
-}
-
-// Update income
-function updateIncome(id) {
-    const source = document.getElementById("incomeSource").value;
-    const category = document.getElementById("incomeCategory").value;
-    const amount = parseFloat(document.getElementById("incomeAmount").value);
-
-    const incomeIndex = appData.incomes.findIndex((inc) => inc.id === id);
-    if (incomeIndex !== -1) {
-        appData.incomes[incomeIndex] = {
-            id: id,
-            source,
-            category,
-            amount,
-        };
-
-        saveData();
-        updateSummaryCards();
-        renderTables();
-        closeModals();
-        document.getElementById("incomeForm").reset();
-
-        // Reset modal to add mode
-        const modal = document.getElementById("incomeModal");
-        const modalTitle = modal.querySelector(".modal-title");
-        const submitBtn = modal.querySelector('button[type="submit"]');
-
-        modalTitle.textContent = "Add Income Source";
-        submitBtn.textContent = "Add Income";
-        submitBtn.onclick = (e) => {
-            e.preventDefault();
-            addIncome(e);
-        };
-    }
-}
-
-// Edit expense
-function editExpense(id) {
-    const expense = appData.expenses.find((exp) => exp.id === id);
-    if (!expense) return;
-
-    document.getElementById("expenseDescription").value = expense.description;
-    document.getElementById("expenseCategory").value = expense.category;
-    document.getElementById("expenseAmount").value = expense.amount;
-
-    // Change modal to edit mode
-    const modal = document.getElementById("expenseModal");
-    const modalTitle = modal.querySelector(".modal-title");
-    const submitBtn = modal.querySelector('button[type="submit"]');
-
-    modalTitle.textContent = "Edit Expense";
-    submitBtn.textContent = "Update Expense";
-    submitBtn.onclick = (e) => {
-        e.preventDefault();
-        updateExpense(id);
-    };
-
-    openModal("expenseModal");
-}
-
-// Update expense
-function updateExpense(id) {
-    const description = document.getElementById("expenseDescription").value;
-    const category = document.getElementById("expenseCategory").value;
-    const amount = parseFloat(document.getElementById("expenseAmount").value);
-
-    const expenseIndex = appData.expenses.findIndex((exp) => exp.id === id);
-    if (expenseIndex !== -1) {
-        appData.expenses[expenseIndex] = {
-            id: id,
-            description,
-            category,
-            amount,
-        };
-
-        saveData();
-        updateSummaryCards();
-        renderTables();
-        closeModals();
-        document.getElementById("expenseForm").reset();
-
-        // Reset modal to add mode
-        const modal = document.getElementById("expenseModal");
-        const modalTitle = modal.querySelector(".modal-title");
-        const submitBtn = modal.querySelector('button[type="submit"]');
-
-        modalTitle.textContent = "Add Expense";
-        submitBtn.textContent = "Add Expense";
-        submitBtn.onclick = (e) => {
-            e.preventDefault();
-            addExpense(e);
-        };
-    }
-}
-
-// Edit asset
-function editAsset(id) {
-    const asset = appData.assets.find((ast) => ast.id === id);
-    if (!asset) return;
-
-    document.getElementById("assetName").value = asset.name;
-    document.getElementById("assetType").value = asset.type;
-    document.getElementById("assetValue").value = asset.value;
-
-    // Change modal to edit mode
-    const modal = document.getElementById("assetModal");
-    const modalTitle = modal.querySelector(".modal-title");
-    const submitBtn = modal.querySelector('button[type="submit"]');
-
-    modalTitle.textContent = "Edit Asset";
-    submitBtn.textContent = "Update Asset";
-    submitBtn.onclick = (e) => {
-        e.preventDefault();
-        updateAsset(id);
-    };
-
-    openModal("assetModal");
-}
-
-// Update asset
-function updateAsset(id) {
-    const name = document.getElementById("assetName").value;
-    const type = document.getElementById("assetType").value;
-    const value = parseFloat(document.getElementById("assetValue").value);
-
-    const assetIndex = appData.assets.findIndex((ast) => ast.id === id);
-    if (assetIndex !== -1) {
-        appData.assets[assetIndex] = {
-            id: id,
-            name,
-            type,
-            value,
-        };
-
-        saveData();
-        updateSummaryCards();
-        renderTables();
-        closeModals();
-        document.getElementById("assetForm").reset();
-
-        // Reset modal to add mode
-        const modal = document.getElementById("assetModal");
-        const modalTitle = modal.querySelector(".modal-title");
-        const submitBtn = modal.querySelector('button[type="submit"]');
-
-        modalTitle.textContent = "Add Asset";
-        submitBtn.textContent = "Add Asset";
-        submitBtn.onclick = (e) => {
-            e.preventDefault();
-            addAsset(e);
-        };
-    }
-}
-
-// Edit liability
-function editLiability(id) {
-    const liability = appData.liabilities.find((lib) => lib.id === id);
-    if (!liability) return;
-
-    document.getElementById("liabilityName").value = liability.name;
-    document.getElementById("liabilityType").value = liability.type;
-    document.getElementById("liabilityAmount").value = liability.amount;
-
-    // Change modal to edit mode
-    const modal = document.getElementById("liabilityModal");
-    const modalTitle = modal.querySelector(".modal-title");
-    const submitBtn = modal.querySelector('button[type="submit"]');
-
-    modalTitle.textContent = "Edit Liability";
-    submitBtn.textContent = "Update Liability";
-    submitBtn.onclick = (e) => {
-        e.preventDefault();
-        updateLiability(id);
-    };
-
-    openModal("liabilityModal");
-}
-
-// Update liability
-function updateLiability(id) {
-    const name = document.getElementById("liabilityName").value;
-    const type = document.getElementById("liabilityType").value;
-    const amount = parseFloat(document.getElementById("liabilityAmount").value);
-
-    const liabilityIndex = appData.liabilities.findIndex((lib) => lib.id === id);
-    if (liabilityIndex !== -1) {
-        appData.liabilities[liabilityIndex] = {
-            id: id,
-            name,
-            type,
-            amount,
-        };
-
-        saveData();
-        updateSummaryCards();
-        renderTables();
-        closeModals();
-        document.getElementById("liabilityForm").reset();
-
-        // Reset modal to add mode
-        const modal = document.getElementById("liabilityModal");
-        const modalTitle = modal.querySelector(".modal-title");
-        const submitBtn = modal.querySelector('button[type="submit"]');
-
-        modalTitle.textContent = "Add Liability";
-        submitBtn.textContent = "Add Liability";
-        submitBtn.onclick = (e) => {
-            e.preventDefault();
-            addLiability(e);
-        };
-    }
-}
-
-// Export data
-function exportData() {
-    const dataStr = JSON.stringify(appData, null, 2);
-    const dataBlob = new Blob([dataStr], { type: "application/json" });
-
-    const url = URL.createObjectURL(dataBlob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "budgetflow_data.json";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-}
-
-// Reset modals to add mode
-function resetModalsToAddMode() {
-    const modals = {
-        incomeModal: {
-            title: "Add Income Source",
-            button: "Add Income",
-            form: "incomeForm",
-        },
-        expenseModal: {
-            title: "Add Expense",
-            button: "Add Expense",
-            form: "expenseForm",
-        },
-        assetModal: {
-            title: "Add Asset",
-            button: "Add Asset",
-            form: "assetForm",
-        },
-        liabilityModal: {
-            title: "Add Liability",
-            button: "Add Liability",
-            form: "liabilityForm",
-        },
-    };
-
-    Object.keys(modals).forEach((modalId) => {
-        const modal = document.getElementById(modalId);
-        if (modal) {
-            const modalTitle = modal.querySelector(".modal-title");
-            const submitBtn = modal.querySelector('button[type="submit"]');
-            const form = document.getElementById(modals[modalId].form);
-
-            modalTitle.textContent = modals[modalId].title;
-            submitBtn.textContent = modals[modalId].button;
-
-            // Reset form
-            if (form) {
-                form.reset();
-            }
-        }
-    });
-}
-
-// Update closeModals function to reset forms
-function closeModals() {
-    modals.forEach((modal) => {
-        modal.style.display = "none";
-    });
-    resetModalsToAddMode();
-}
-
-// Import data
-function importData() {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".json";
-
-    input.onchange = (e) => {
-        const file = e.target.files[0];
-        const reader = new FileReader();
-
-        reader.onload = (event) => {
-            try {
-                const importedData = JSON.parse(event.target.result);
-                appData = importedData;
-                saveData();
-                updateSummaryCards();
-                renderTables();
-                renderCategories();
-                alert("Data imported successfully!");
-            } catch (error) {
-                alert("Error importing data. Please make sure you selected a valid JSON file.");
-            }
-        };
-
-        reader.readAsText(file);
-    };
-
-    input.click();
-}
-
-// Clear all data
-function clearData() {
-    if (confirm("Are you sure you want to clear all data? This action cannot be undone.")) {
-        appData = {
-            incomes: [],
-            expenses: [],
-            assets: [],
-            liabilities: [],
-            categories: [
-                "Salary",
-                "Freelance",
-                "Investment",
-                "Rental",
-                "Business",
-                "Housing",
-                "Food",
-                "Transportation",
-                "Utilities",
-                "Entertainment",
-                "Healthcare",
-                "Education",
-            ],
-        };
-        saveData();
-        updateSummaryCards();
-        renderTables();
-        renderCategories();
+        closeDetailsModal(); // Use the new function
     }
 }
 
