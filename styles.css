@@ -11,7 +11,7 @@
     --dark: #1e1e2f;
     --gray: #6c757d;
     --gray-light: #e9ecef;
-    --border-radius: 12px;
+    --border-radius: 10px;
     --box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     --transition: all 0.3s ease;
 }
@@ -349,7 +349,6 @@ header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 1rem;
 }
 
 .entry-name {
@@ -359,10 +358,11 @@ header {
 }
 
 .entry-category {
-    background: var(--gray-light);
-    color: var(--gray);
-    padding: 4px 8px;
-    border-radius: 20px;
+    /* background: var(--gray-light); */
+    background: var(--secondary);
+    color: #f8f9fa;
+    padding: 4px 12px;
+    border-radius: 10px;
     font-size: 0.8rem;
     font-weight: 500;
 }
@@ -556,7 +556,7 @@ header {
     background-color: var(--primary-light);
     color: white;
     padding: 5px 10px;
-    border-radius: 20px;
+    border-radius: 10px;
     display: flex;
     align-items: center;
     gap: 5px;

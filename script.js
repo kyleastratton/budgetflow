@@ -247,15 +247,19 @@ function renderCategoryList(type, containerId) {
         liability: "Liability Type",
     };
 
-    appData.categories[type].forEach((category) => {
-        const categoryTag = document.createElement("div");
-        categoryTag.className = "category-tag";
-        categoryTag.innerHTML = `
-            ${category}
-            <i class="fas fa-times delete-category" data-type="${type}" data-category="${category}"></i>
-        `;
-        container.appendChild(categoryTag);
-    });
+    // Sort categories before rendering
+    appData.categories[type]
+        .slice()
+        .sort((a, b) => a.localeCompare(b))
+        .forEach((category) => {
+            const categoryTag = document.createElement("div");
+            categoryTag.className = "category-tag";
+            categoryTag.innerHTML = `
+                ${category}
+                <i class="fas fa-times delete-category" data-type="${type}" data-category="${category}"></i>
+            `;
+            container.appendChild(categoryTag);
+        });
 
     // Add event listeners to delete buttons
     container.querySelectorAll(".delete-category").forEach((button) => {
@@ -850,6 +854,8 @@ function addNewCategory(e) {
 
     if (!appData.categories[type].includes(name)) {
         appData.categories[type].push(name);
+        // Sort the category array after adding
+        appData.categories[type].sort((a, b) => a.localeCompare(b));
         saveData();
         renderAllCategories();
         populateCategorySelects();
@@ -895,8 +901,6 @@ function isCategoryInUse(type, category) {
 
 // Populate category selects in modals with optional pre-selected values
 function populateCategorySelects(preSelectedValues = {}) {
-    console.log("populateCategorySelects called with:", preSelectedValues);
-    
     const incomeCategory = document.getElementById("incomeCategory");
     const expenseCategory = document.getElementById("expenseCategory");
     const assetType = document.getElementById("assetType");
@@ -909,37 +913,49 @@ function populateCategorySelects(preSelectedValues = {}) {
         }
     });
 
-    // Add income categories
-    appData.categories.income.forEach((category) => {
-        const option = document.createElement("option");
-        option.value = category;
-        option.textContent = category;
-        incomeCategory.appendChild(option);
-    });
+    // Add income categories (SORTED)
+    appData.categories.income
+        .slice() // Create a copy to avoid mutating original array
+        .sort((a, b) => a.localeCompare(b)) // Sort alphabetically
+        .forEach((category) => {
+            const option = document.createElement("option");
+            option.value = category;
+            option.textContent = category;
+            incomeCategory.appendChild(option);
+        });
 
-    // Add expense categories
-    appData.categories.expense.forEach((category) => {
-        const option = document.createElement("option");
-        option.value = category;
-        option.textContent = category;
-        expenseCategory.appendChild(option);
-    });
+    // Add expense categories (SORTED)
+    appData.categories.expense
+        .slice()
+        .sort((a, b) => a.localeCompare(b))
+        .forEach((category) => {
+            const option = document.createElement("option");
+            option.value = category;
+            option.textContent = category;
+            expenseCategory.appendChild(option);
+        });
 
-    // Add asset types
-    appData.categories.asset.forEach((type) => {
-        const option = document.createElement("option");
-        option.value = type;
-        option.textContent = type;
-        assetType.appendChild(option);
-    });
+    // Add asset types (SORTED)
+    appData.categories.asset
+        .slice()
+        .sort((a, b) => a.localeCompare(b))
+        .forEach((type) => {
+            const option = document.createElement("option");
+            option.value = type;
+            option.textContent = type;
+            assetType.appendChild(option);
+        });
 
-    // Add liability types
-    appData.categories.liability.forEach((type) => {
-        const option = document.createElement("option");
-        option.value = type;
-        option.textContent = type;
-        liabilityType.appendChild(option);
-    });
+    // Add liability types (SORTED)
+    appData.categories.liability
+        .slice()
+        .sort((a, b) => a.localeCompare(b))
+        .forEach((type) => {
+            const option = document.createElement("option");
+            option.value = type;
+            option.textContent = type;
+            liabilityType.appendChild(option);
+        });
 
     // Set pre-selected values if provided
     if (preSelectedValues.income) {
